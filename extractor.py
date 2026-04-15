@@ -6,6 +6,17 @@ import re
 from pdf2image import convert_from_bytes
 from pypdf import PdfReader
 
+# Hide github icon
+st.markdown(
+    """
+<style>
+#GithubIcon { visibility: hidden; }
+footer { visibility: hidden; }
+</style>
+""",
+    unsafe_allow_html=True,
+)
+
 st.set_page_config(page_title="Equity Extractor", page_icon="🏦", layout="centered")
 
 st.title("🏦 Equity Bank Statement Customer Extractor")
