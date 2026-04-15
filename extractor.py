@@ -10,7 +10,7 @@ from pypdf import PdfReader
 st.markdown(
     """
 <style>
-#GithubIcon { visibility: hidden; }
+header { visibility: hidden; }
 footer { visibility: hidden; }
 </style>
 """,
