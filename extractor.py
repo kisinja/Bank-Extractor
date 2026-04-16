@@ -170,4 +170,4 @@ else:
     st.info("👆 Upload your Equity Bank statement image(s) or PDF(s)")
 
 st.markdown("---")
-st.caption("Name column cleaned | GitHub icon hidden")
+# st.caption("Name column cleaned | GitHub icon hidden")
