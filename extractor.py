@@ -6,6 +6,8 @@ import re
 from pdf2image import convert_from_bytes
 from pypdf import PdfReader
 
+from datetime import datetime
+
 # Hide GitHub icon
 st.markdown(
     """
@@ -22,8 +24,7 @@ st.set_page_config(page_title="Equity Extractor", page_icon="🏦", layout="cent
 st.title("🏦 Equity Bank Statement Customer Extractor")
 st.markdown(
     """
-**Upload images or PDFs → Get clean +254 phones, customer names & amounts**  
-Name column is now cleaned (only actual customer name).
+**Upload PDFs → Get clean +254 phones, customer names & amounts**
 """
 )
 
@@ -149,20 +150,19 @@ if uploaded_files:
         df = pd.DataFrame(data)
         df["Phone"] = df["Phone"].astype(str)
 
-        st.success(f"✅ Extracted **{len(df)} unique customers** with clean names!")
+        st.success(f"✅ Extracted **{len(df)} unique customers**")
         st.dataframe(df, use_container_width=True, hide_index=True)
+
+        today = datetime.now().strftime("%Y-%m-%d")
+        download_filename = f"customers-{today}.csv"
 
         csv = df.to_csv(index=False, quoting=1)
         st.download_button(
             label="📥 Download customers.csv",
             data=csv,
-            file_name="customers.csv",
+            file_name=download_filename,
             mime="text/csv",
             type="primary",
-        )
-
-        st.caption(
-            "✅ Clean customer names only • Phones in +254 format • Amounts summed"
         )
     else:
         st.warning("⚠️ No transactions extracted. Try clearer docs.")
