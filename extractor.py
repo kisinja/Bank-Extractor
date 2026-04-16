@@ -6,11 +6,11 @@ import re
 from pdf2image import convert_from_bytes
 from pypdf import PdfReader
 
-# Hide github icon
+# Hide GitHub icon
 st.markdown(
     """
 <style>
-header { visibility: hidden; }
+#GithubIcon { visibility: hidden; }
 footer { visibility: hidden; }
 </style>
 """,
@@ -22,8 +22,8 @@ st.set_page_config(page_title="Equity Extractor", page_icon="🏦", layout="cent
 st.title("🏦 Equity Bank Statement Customer Extractor")
 st.markdown(
     """
-**Upload images or PDFs → Get +254 phones, names & amounts (deduplicated)**  
-Supports both text-based PDFs and scanned PDFs.
+**Upload images or PDFs → Get clean +254 phones, customer names & amounts**  
+Name column is now cleaned (only actual customer name).
 """
 )
 
@@ -31,12 +31,10 @@ uploaded_files = st.file_uploader(
     "Upload Equity Bank statement(s)",
     type=["png", "jpg", "jpeg", "pdf"],
     accept_multiple_files=True,
-    help="You can upload multiple files",
 )
 
 
 def normalize_phone(phone_raw: str) -> str:
-    """Convert Kenyan numbers to +254 format"""
     phone = re.sub(r"\D", "", phone_raw.strip())
     if len(phone) == 12 and phone.startswith("254"):
         return f"+{phone}"
@@ -47,11 +45,36 @@ def normalize_phone(phone_raw: str) -> str:
     return phone
 
 
+def clean_name(name_raw: str) -> str:
+    """Clean the name: remove amounts, dates, HEAD OFFICE, PO Box, etc."""
+    name = name_raw.strip()
+
+    # Remove common unwanted patterns at the end of name
+    name = re.sub(
+        r"\d{1,3}(?:,\d{3})*(?:\.\d{2})?", "", name
+    )  # remove amounts like 2,800.00
+    name = re.sub(r"\d{2}-\d{2}-\d{4}", "", name)  # remove dates like 24-04-2024
+    name = re.sub(r"HEAD OFFICE.*", "", name, flags=re.IGNORECASE)
+    name = re.sub(r"PO\.?\s*Box.*", "", name, flags=re.IGNORECASE)
+    name = re.sub(r"APP/.*", "", name, flags=re.IGNORECASE)
+    name = re.sub(r"EAZZ.*", "", name, flags=re.IGNORECASE)
+
+    # Remove extra spaces and trailing numbers/words
+    name = re.sub(r"\s+", " ", name).strip()
+    name = re.sub(r"\s+\d+$", "", name)  # remove trailing numbers
+
+    return name if name else "Unknown"
+
+
 def extract_transactions(raw_text: str):
     cleaned = re.sub(r"\s+", " ", raw_text).strip()
-    pattern = r"MPS\s+(\d{12})\s+\S+\s+0733457904\s+(.+?)(?=\s+MPS\s+\d{12}|\Z)"
+
+    # Improved pattern: captures phone, then code, then 0733457904, then name (stops before next MPS or junk)
+    pattern = r"MPS\s+(\d{12})\s+\S+\s+0733457904\s+([A-Za-z\s]+?)(?=\s+MPS\s+\d{12}|\s+\d{1,3}(?:,\d{3})*(?:\.\d{2})|\s+HEAD OFFICE|\Z)"
+
     transactions = re.findall(pattern, cleaned, re.IGNORECASE)
 
+    # Extract Credit amounts (every even monetary value)
     money_pattern = r"(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)"
     all_amounts = re.findall(money_pattern, cleaned)
     credits = []
@@ -63,11 +86,11 @@ def extract_transactions(raw_text: str):
                 pass
 
     extracted = []
-    for i, (phone_raw, name) in enumerate(transactions):
-        name = name.strip() or "Unknown"
+    for i, (phone_raw, name_raw) in enumerate(transactions):
+        clean_name_str = clean_name(name_raw)
         if i < len(credits):
             extracted.append(
-                {"raw_phone": phone_raw, "name": name, "amount": credits[i]}
+                {"raw_phone": phone_raw, "name": clean_name_str, "amount": credits[i]}
             )
     return extracted
 
@@ -115,28 +138,23 @@ if uploaded_files:
                 if len(name) > len(customer_dict[phone]["name"]):
                     customer_dict[phone]["name"] = name
 
-        # Build DataFrame with Phone as string to prevent scientific notation
         data = [
             {
-                "Phone": phone,  # Kept as string
+                "Phone": phone,
                 "Name": info["name"],
                 "Amount (KSh)": round(info["total"], 2),
             }
             for phone, info in customer_dict.items()
         ]
         df = pd.DataFrame(data)
-
-        # Force Phone column to be text (important for CSV)
         df["Phone"] = df["Phone"].astype(str)
 
-        st.success(f"✅ Successfully extracted **{len(df)} unique customers**!")
+        st.success(f"✅ Extracted **{len(df)} unique customers** with clean names!")
         st.dataframe(df, use_container_width=True, hide_index=True)
 
-        # Improved CSV download - forces text format for Phone
-        csv = df.to_csv(index=False, quoting=1)  # quoting=1 helps with strings
-
+        csv = df.to_csv(index=False, quoting=1)
         st.download_button(
-            label="📥 Download customers.csv (Phone numbers fixed)",
+            label="📥 Download customers.csv",
             data=csv,
             file_name="customers.csv",
             mime="text/csv",
@@ -144,15 +162,12 @@ if uploaded_files:
         )
 
         st.caption(
-            "✅ Phones in +254 format (saved as text) • Duplicates removed • Amounts summed"
-        )
-        st.info(
-            "💡 Tip: When opening in Excel, the Phone column should now show full numbers. If not, select the column → Format Cells → Text."
+            "✅ Clean customer names only • Phones in +254 format • Amounts summed"
         )
     else:
-        st.warning("⚠️ No transactions could be extracted.")
+        st.warning("⚠️ No transactions extracted. Try clearer docs.")
 else:
     st.info("👆 Upload your Equity Bank statement image(s) or PDF(s)")
 
 st.markdown("---")
-st.caption("Hosted version | Phone numbers fixed for Excel")
+st.caption("Name column cleaned | GitHub icon hidden")
